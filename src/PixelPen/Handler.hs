@@ -12,10 +12,13 @@ eventHandle fs op e
   | otherwise = op e >> return False
        where quit = any (\f -> f e) fs
 
-eventHandle_ :: (MonadIO m) => [SDL.Event -> Bool] -> (a -> SDL.Event -> m a) -> a -> SDL.Event -> m (Bool, a)
-eventHandle_ fs op a e
-  | quit = return (True, a)
-  | otherwise = op a e >>= (\a' -> return (False, a'))
+eventHandle_ :: (MonadIO m) => [SDL.Event -> Bool] -> (SDL.Event -> s ->  m s) -> (SDL.Event -> s -> m ()) -> SDL.Event -> s -> m (Bool, s)
+eventHandle_ fs upd op e s
+  | quit = return (True, s)
+  | otherwise = do
+                  s' <- upd e s
+                  op e s'
+                  return (False, s')
        where quit = any (\f -> f e) fs
 
 update :: (MonadIO m) => (SDL.Event -> m Bool) -> m ()
@@ -26,12 +29,12 @@ update h = do
           unless b (update h)) me
     return ()
 
-update_ :: (MonadIO m) => a -> (SDL.Event -> m (Bool, a)) -> m ()
-update_ a h = do
+update_ :: (MonadIO m) => s -> (SDL.Event -> s ->  m (Bool, s)) -> m ()
+update_ s h = do
     me <- SDL.pollEvent
-    maybe (update_ a h) (\e -> do
-          (b, a') <- h e
-          unless b (update_ a' h)) me
+    maybe (update_ s h) (\e -> do
+          (b, s') <- h e s
+          unless b (update_ s' h)) me
 
 checkDefaultQuit :: [SDL.Event -> Bool]
 checkDefaultQuit = [(== SDL.QuitEvent) . SDL.eventPayload]
