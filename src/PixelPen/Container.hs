@@ -17,8 +17,30 @@ defaultWindow = (flip SDL.createWindow SDL.defaultWindow, SDL.destroyWindow)
 surface :: (MonadIO m) => (SDL.Window -> m SDL.Surface, SDL.Surface -> m())
 surface = (SDL.getWindowSurface, SDL.freeSurface)
 
-loadBmpPic :: (MonadIO m) => (FilePath -> m SDL.Surface, SDL.Surface -> m())
-loadBmpPic = (SDL.loadBMP, SDL.freeSurface)
+bmpSurface :: (MonadIO m) => (FilePath -> m SDL.Surface, SDL.Surface -> m())
+bmpSurface = (SDL.loadBMP, SDL.freeSurface)
+
+
+optBmpSurface :: (MonadIO m) => ((SDL.Surface, FilePath) -> m SDL.Surface, SDL.Surface -> m())
+optBmpSurface = (uncurry optLoadBmpPic, SDL.freeSurface)
+
+-- In fact, SDL converts color mode in every blitting if
+-- the color mode of source surface doesn't match
+-- the color mode of target surface.
+-- To avoid those converting, a simple way is to
+-- align their color mode whenever we load an image.
+optLoadBmpPic :: (MonadIO m) => SDL.Surface -> FilePath -> m SDL.Surface
+optLoadBmpPic sf path = do
+   imgSf <- SDL.loadBMP path
+   -- get the color mode of given surface
+   spf <- SDL.surfaceFormat sf
+   -- align the color mode of image surface
+   SDL.convertSurface imgSf spf
+      <* SDL.freeSurface imgSf
+   -- equals to the following lines
+   -- optSf <- SDL.convertSurface imgSf spf
+   -- SDL.freeSurface imgSf
+   -- return optSf
 
 (^.^) :: (MonadIO m) => (a -> m b, b -> m ()) -> a -> (b -> m c) -> m ()
 (^.^) (x,y) i f = do
@@ -26,4 +48,8 @@ loadBmpPic = (SDL.loadBMP, SDL.freeSurface)
    f c
    y c
 
-
+(^.^.) :: (MonadIO m) => (a -> m b, b -> m ()) -> a -> s -> (b -> s -> m d) -> m ()
+(^.^.) (x,y) i s f = do
+   c <- x i
+   f c s
+   y c
