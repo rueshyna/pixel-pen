@@ -48,6 +48,20 @@ optLoadBmpPic sf path = do
    f c
    y c
 
+class Loadable l where
+  load :: MonadIO m => (a -> m b) -> l a -> m (l b)
+  unload :: MonadIO m => (a -> m ()) -> l a -> m ()
+
+(^.^/) :: (Traversable t, Loadable l, MonadIO m)
+       => (a -> m b, b -> m ())
+       -> t (l a)
+       -> (t (l b) -> m d)
+       -> m ()
+(^.^/) (x,y) i op = do
+  c <- sequence $ fmap (load x) i
+  op c
+  mapM_ (unload y) c
+
 (^.^.) :: (MonadIO m) => (a -> m b, b -> m ()) -> a -> s -> (b -> s -> m d) -> m ()
 (^.^.) (x,y) i s f = do
    c <- x i
